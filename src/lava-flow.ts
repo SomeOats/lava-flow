@@ -64,6 +64,9 @@ export default class LavaFlow {
 
     try {
       await this.saveSettings(settings);
+
+      if (settings.importNonMarkdown) { await LavaFlow.validateUploadLocation(settings); }
+
       const rootFolder = await createOrGetFolder(settings.rootFolderName);
       const files: FileInfo[] = [];
       if (settings.vaultFiles == null) return;
@@ -83,7 +86,9 @@ export default class LavaFlow {
 
         if (settings.createBacklinks) await LavaFlow.createBacklinks(mdFiles);
       }
-
+      
+      settings.vaultFiles = null;
+      LavaFlow.saveSettings(settings);
       LavaFlow.log('Import complete.', true);
     } catch (e: any) {
       LavaFlow.errorHandling(e);
@@ -134,11 +139,24 @@ export default class LavaFlow {
     let path = `${settings.mediaFolder}/${file.originalFile.name}`;
     path.replace('//', '/');
     if (settings.useS3) {
-      if (settings.s3Bucket === null || settings.s3Region === null) throw new Error('S3 settings are invalid.');
       path = `https://${settings.s3Bucket}.s3.${settings.s3Region}.amazonaws.com/${path}`;
     }
     file.uploadPath = path;
     await promise;
+  }
+
+  static async validateUploadLocation(settings: LavaFlowSettings): Promise<void> {
+    if (settings.useS3) {
+      if (settings.s3Bucket === null || settings.s3Region === null) throw new Error('S3 settings are invalid.');
+    }
+    try {
+      let pickerPromise = await FilePicker.browse('data', settings.mediaFolder);
+      return;
+    } catch (error: any) {
+      LavaFlow.log(`Error accessing filepath ${settings.mediaFolder}: ${error.message}`, false);
+    }
+
+    await FilePicker.createDirectory('data', settings.mediaFolder);
   }
 
   static async createIndexFile(
@@ -248,7 +266,8 @@ export default class LavaFlow {
       },
       { parent: entry },
     );
-    return entry;
+    const newJournal = ((game as Game).journal?.get(entry.id ?? '')) ?? entry;
+    return newJournal; // ensuring the page content is returned as well as it's used for link generation
   }
 
   static async updateJournalFromFile(journal: JournalEntry, file: FileInfo): Promise<void> {
@@ -271,19 +290,26 @@ export default class LavaFlow {
   }
 
   static async updateLinks(fileInfo: FileInfo, allJournals: JournalEntry[]): Promise<void> {
-    const linkPatterns = fileInfo.getLinkRegex();
-    for (let i = 0; i < allJournals.length; i++) {
+    const linkPatterns = fileInfo.getLinkRegex(); 
+    // scan all created journal entries (via allJournals) for matching references to markdown file fileInfo
+    for (let i = 0; i < allJournals.length; i++) { 
       // v10 not supported by foundry-vtt-types yet
       // @ts-expect-error
       const comparePage = allJournals[i].pages.contents[0];
 
       for (let j = 0; j < linkPatterns.length; j++) {
-        const pattern = linkPatterns[j];
-        const linkMatches = (comparePage.text.markdown as string).matchAll(pattern);
-        if (linkMatches === null) continue;
+        const linkMatches = (comparePage.text.markdown as string).matchAll(linkPatterns[j]);
+        // linkMatches (full link, page, header, alias)
+        
         for (const linkMatch of linkMatches) {
-          const alias = (linkMatch[2] ?? '|').split('|')[1].trim();
-          let link = fileInfo.getLink(alias);
+          if (linkMatch[2] !== undefined && linkMatch[1] == undefined && fileInfo.journal?.id != allJournals[i].id) { // current page header
+            // link is a current page header link and we're not matching that page
+            continue;
+            // since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
+          }
+          
+          let link = fileInfo.getLink(linkMatch);
+          
           if (link === null) continue;
           if (fileInfo instanceof OtherFileInfo) {
             const resizeMatches = linkMatch[0].match(/\|\d+(x\d+)?\]/gi);
