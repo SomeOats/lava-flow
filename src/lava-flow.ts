@@ -127,7 +127,7 @@ export default class LavaFlow {
 
     if (journal !== null && settings.overwrite) await LavaFlow.updateJournalFromFile(journal, file);
     else if (journal === null || (!settings.overwrite && !settings.ignoreDuplicate))
-      journal = await LavaFlow.createJournalFromFile(journalName, parentFolder, file, settings.playerObserve);
+      journal = await LavaFlow.createJournalFromFile(journalName, parentFolder, file, settings.playerObserve, settings.headerToPage);
 
     file.journal = journal;
   }
@@ -179,7 +179,7 @@ export default class LavaFlow {
     }
     if (indexJournal != null) await LavaFlow.updateJournal(indexJournal, content);
     else {
-      await LavaFlow.createJournal(indexJournalName, rootFolder, content, settings.playerObserve);
+      await LavaFlow.createJournal(indexJournalName, rootFolder, content, settings.playerObserve, settings.headerToPage);
     }
   }
 
@@ -236,9 +236,10 @@ export default class LavaFlow {
     parentFolder: Folder | null,
     file: FileInfo,
     playerObserve: boolean,
+    headerToPage: boolean
   ): Promise<JournalEntry> {
     const fileContent = await LavaFlow.getFileContent(file);
-    return await LavaFlow.createJournal(journalName, parentFolder, fileContent, playerObserve);
+    return await LavaFlow.createJournal(journalName, parentFolder, fileContent, playerObserve, headerToPage);
   }
 
   static async createJournal(
@@ -246,6 +247,7 @@ export default class LavaFlow {
     parentFolder: Folder | null,
     content: string,
     playerObserve: boolean,
+    headerToPage: boolean
   ): Promise<JournalEntry> {
     const entryData: JournalEntryDataConstructorData = {
       name: journalName,
@@ -257,17 +259,65 @@ export default class LavaFlow {
     const entry = (await JournalEntry.create(entryData)) ?? new JournalEntry();
     await entry.setFlag(LavaFlow.FLAGS.SCOPE, LavaFlow.FLAGS.JOURNAL, true);
 
-    // v10 not supported by foundry-vtt-types yet
-    // @ts-expect-error
-    await JournalEntryPage.create(
-      {
-        name: journalName,
-        text: { markdown: content, format: 2 }, // CONST.JOURNAL_ENTRY_PAGE_FORMATS.MARKDOWN in v10
-      },
-      { parent: entry },
-    );
+    if (headerToPage) {
+      await this.createPagesFromHeaders(entry, content);
+    } else {
+      // v10 not supported by foundry-vtt-types yet
+      // @ts-expect-error
+      await JournalEntryPage.create({ name: journalName, text: { markdown: content, format: 2 }},{ parent: journal });
+    }    
+
     const newJournal = ((game as Game).journal?.get(entry.id ?? '')) ?? entry;
     return newJournal; // ensuring the page content is returned as well as it's used for link generation
+  }
+
+  static async createPagesFromHeaders(journal: JournalEntry, content: String): Promise<void> {
+    if (journal === null) { return }
+    const header1RegEx = new RegExp(`^#\\s.*$`, `gmid`); // match level 1 headers. using index/lastIndex to split content
+    const headersRegEx = new RegExp(`^#{2,}\\s`, `gmi`); // match level 2 or more headers, but only the header and the space. Not the text
+
+    let fileContent = content;
+    let index = -1; // start of next header
+    let lastIndex = 0; // end of next header
+    let priorIndex = 0; // end of last header
+    let pageContent = ''; // current page content
+    let nextHeader = ''; // next header
+    let currentHeader = journal.name; // current page's header
+    let hMatches = null;
+
+    const h1Matches = fileContent.matchAll(header1RegEx);
+
+    for (let h1Match of h1Matches) {
+      LavaFlow.log(`Working on match ${h1Match[0]} at index ${h1Match.index ?? -1} with length ${h1Match[0].length} with last index ${lastIndex} and current header ${currentHeader}}`, false);
+      index = h1Match.index ?? -1; // start position of current header
+      lastIndex = index + (h1Match[0].length ?? 0); // final position of found header
+      nextHeader = h1Match[0].replace('# ', ''); // this is the next page's header, not current page's header
+      LavaFlow.log(`Found nextHeader: ${nextHeader}`);
+
+      if (index == 0) {
+        LavaFlow.log(`Found header at top of page`);
+        priorIndex = lastIndex;
+        currentHeader = nextHeader;
+        continue; 
+      } // if the page starts with a header, we can skip the match and move to the next block.
+
+      pageContent = fileContent.substring(priorIndex, index);
+      fileContent = fileContent.slice(lastIndex); // this is the current page as the regex matches to the end of the current page.
+      priorIndex = lastIndex;
+
+      hMatches = pageContent.matchAll(headersRegEx);
+      for (let hMatch of hMatches) { // increase header values for the page
+        pageContent = pageContent.replace(hMatch[0], hMatch[0].slice(1));
+        // this will replace all headers of a specific level with the next level. since regex matches all headers, this will do nothing most of the time. 
+        // need to find a more efficient way
+      }
+
+      // @ts-expect-error
+      await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 }},{ parent: journal });
+      currentHeader = nextHeader;
+    }
+    // @ts-expect-error
+    await JournalEntryPage.create({ name: currentHeader, text: { markdown: fileContent, format: 2 }},{ parent: journal }); // create final page
   }
 
   static async updateJournalFromFile(journal: JournalEntry, file: FileInfo): Promise<void> {
@@ -286,6 +336,7 @@ export default class LavaFlow {
     let originalText = await file.originalFile.text();
     if (originalText !== null && originalText.length > 6)
       originalText = originalText.replace(/^---\r?\n([^-].*\r?\n)+---(\r?\n)+/, '');
+    // unsure why this is replacing data in the original text...
     return originalText;
   }
 

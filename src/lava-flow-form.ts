@@ -10,7 +10,7 @@ export class LavaFlowForm extends FormApplication {
     const defaults = super.defaultOptions;
 
     const overrides: LavaFlowFormOptions = {
-      height: 500,
+      height: 600,
       id: `${LavaFlow.ID}-form`,
       template: LavaFlow.TEMPLATES.IMPORTDIAG,
       title: 'Import Obsidian MD Vault',
