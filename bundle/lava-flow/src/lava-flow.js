@@ -229,29 +229,28 @@ export default class LavaFlow {
 		const header1RegEx = new RegExp(`^#\\s.*$`, `gmid`); // match level 1 headers. using index/lastIndex to split content
 		const headersRegEx = new RegExp(`^#{2,}\\s`, `gmi`); // match level 2 or more headers, but only the header and the space. Not the text
 		let fileContent = content;
-		let index = -1; // start of next header
-		let lastIndex = 0; // end of next header
-		let priorIndex = 0; // end of last header
+		let currentStartIndex = 0; // start of next header
+		let currentEndIndex = 0; // end of next header
+		let priorEndIndex = 0; // end of last header
 		let pageContent = ''; // current page content
 		let nextHeader = ''; // next header
 		let currentHeader = journal.name; // current page's header
 		let hMatches = null;
 		const h1Matches = fileContent.matchAll(header1RegEx);
 		for (let h1Match of h1Matches) {
-			LavaFlow.log(`Working on match ${h1Match[0]} at index ${h1Match.index ?? -1} with length ${h1Match[0].length} with last index ${lastIndex} and current header ${currentHeader}}`, false);
-			index = h1Match.index ?? -1; // start position of current header
-			lastIndex = index + (h1Match[0].length ?? 0); // final position of found header
+			LavaFlow.log(`Working on match ${h1Match[0]} at index ${h1Match.index ?? -1} with length ${h1Match[0].length} with prior end index ${priorEndIndex} and current header ${currentHeader}}`, false);
+			currentStartIndex = h1Match.index ?? -1; // start position of current header
+			currentEndIndex = currentStartIndex + (h1Match[0].length ?? 0); // final position of found header
 			nextHeader = h1Match[0].replace('# ', ''); // this is the next page's header, not current page's header
 			LavaFlow.log(`Found nextHeader: ${nextHeader}`);
-			if (index == 0) {
+			if (currentStartIndex == 0) {
 				LavaFlow.log(`Found header at top of page`);
-				priorIndex = lastIndex;
+				priorEndIndex = currentEndIndex;
 				currentHeader = nextHeader;
 				continue;
 			} // if the page starts with a header, we can skip the match and move to the next block.
-			pageContent = fileContent.substring(priorIndex, index);
-			fileContent = fileContent.slice(lastIndex); // this is the current page as the regex matches to the end of the current page.
-			priorIndex = lastIndex;
+			pageContent = fileContent.substring(priorEndIndex, currentStartIndex);
+			priorEndIndex = currentEndIndex;
 			hMatches = pageContent.matchAll(headersRegEx);
 			for (let hMatch of hMatches) { // increase header values for the page
 				pageContent = pageContent.replace(hMatch[0], hMatch[0].slice(1));
@@ -262,8 +261,9 @@ export default class LavaFlow {
 			await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal });
 			currentHeader = nextHeader;
 		}
+		pageContent = fileContent.slice(priorEndIndex);
 		// @ts-expect-error
-		await JournalEntryPage.create({ name: currentHeader, text: { markdown: fileContent, format: 2 } }, { parent: journal }); // create final page
+		await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal }); // create final page
 	}
 	static async updateJournalFromFile(journal, file) {
 		await LavaFlow.updateJournal(journal, await LavaFlow.getFileContent(file));
