@@ -51,11 +51,11 @@ export class MDFileInfo extends FileInfo {
     this.createKeys(this.fileNameNoExt);
   }
 
-  getPageId(pageName: string): string | null {
+  getPageId(headerOrPageName: string): string | null {
     let pageId = null;
     // @ts-expect-error
     for (let checkPage of this.journal.pages) {
-      if (checkPage.name == pageName) {
+      if ((checkPage.name == headerOrPageName) || (checkPage.text.markdown.includes(`# ${headerOrPageName}`))) {
         pageId = checkPage.id;
         break;
       }
