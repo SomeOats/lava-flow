@@ -60,13 +60,13 @@ export default class LavaFlow {
 			}
 			const allJournals = files.filter((f) => f.journal !== null).map((f) => f.journal);
 			for (let i = 0; i < files.length; i++)
-				await LavaFlow.updateLinks(files[i], allJournals);
+				await LavaFlow.updateLinks(files[i], allJournals, settings.headerToPage);
 			if (settings.createIndexFile || settings.createBacklinks) {
 				const mdFiles = files.filter((f) => f instanceof MDFileInfo);
 				if (settings.createIndexFile)
 					await LavaFlow.createIndexFile(settings, mdFiles, rootFolder);
 				if (settings.createBacklinks)
-					await LavaFlow.createBacklinks(mdFiles);
+					await LavaFlow.createBacklinks(mdFiles, settings.headerToPage);
 			}
 			settings.vaultFiles = null;
 			LavaFlow.saveSettings(settings);
@@ -100,7 +100,7 @@ export default class LavaFlow {
 		let journal = game.journal?.find((j) => j.name === journalName && j.folder === parentFolder) ??
 			null;
 		if (journal !== null && settings.overwrite)
-			await LavaFlow.updateJournalFromFile(journal, file);
+			await LavaFlow.updateJournalFromFile(journal, file, settings.headerToPage);
 		else if (journal === null || (!settings.overwrite && !settings.ignoreDuplicate))
 			journal = await LavaFlow.createJournalFromFile(journalName, parentFolder, file, settings.playerObserve, settings.headerToPage);
 		file.journal = journal;
@@ -139,14 +139,14 @@ export default class LavaFlow {
 		directories.sort();
 		let content = '';
 		for (let j = 0; j < directories.length; j++) {
-			content += `<h1>${directories[j]}</h1>`;
+			content += `# ${directories[j]}`;
 			const journals = mdDictionary
 				.filter((d) => LavaFlow.getIndexTopDirectory(d) === directories[j])
 				.map((d) => d.journal);
-			content += `<ul>${journals.map((journal) => `<li>${journal?.link ?? ''}</li>`).join('\n')}</ul>`;
+			content += `${journals.map((journal) => `- ${journal?.link ?? ''}`).join('\n')}`;
 		}
 		if (indexJournal != null)
-			await LavaFlow.updateJournal(indexJournal, content);
+			await LavaFlow.updateJournal(indexJournal, content, settings.headerToPage);
 		else {
 			await LavaFlow.createJournal(indexJournalName, rootFolder, content, settings.playerObserve, settings.headerToPage);
 		}
@@ -154,7 +154,7 @@ export default class LavaFlow {
 	static getIndexTopDirectory(fileInfo) {
 		return fileInfo.directories.length > 1 ? fileInfo.directories[1] : 'Uncatergorized';
 	}
-	static async createBacklinks(files) {
+	static async createBacklinks(files, headerToPage) {
 		for (let i = 0; i < files.length; i++) {
 			const fileInfo = files[i];
 			if (fileInfo.journal === null)
@@ -166,10 +166,13 @@ export default class LavaFlow {
 				const otherFileInfo = files[j];
 				// v10 not supported by foundry-vtt-types yet
 				// @ts-expect-error
-				const page = otherFileInfo.journal?.pages?.contents[0];
-				const link = fileInfo.getLink();
-				if (page !== undefined && page !== null && link !== null && page.text.markdown.includes(link))
-					backlinkFiles.push(otherFileInfo);
+				for (let currentPage of otherFileInfo.journal?.pages) {
+					// TODO: create list of links from other pages calling this page. 
+					const link = fileInfo.journal?.id ?? null;
+					if (currentPage !== undefined && currentPage !== null && link !== null && currentPage.text.markdown.includes(link))
+						backlinkFiles.push(otherFileInfo);
+				}
+				//const page = otherFileInfo.journal?.pages?.contents[0];
 			}
 			if (backlinkFiles.length > 0) {
 				backlinkFiles.sort((a, b) => a.fileNameNoExt.localeCompare(b.fileNameNoExt));
@@ -227,7 +230,6 @@ export default class LavaFlow {
 			return;
 		}
 		const header1RegEx = new RegExp(`^#\\s.*$`, `gmid`); // match level 1 headers. using index/lastIndex to split content
-		const headersRegEx = new RegExp(`^#{2,}\\s`, `gmi`); // match level 2 or more headers, but only the header and the space. Not the text
 		let fileContent = content;
 		let currentStartIndex = 0; // start of next header
 		let currentEndIndex = 0; // end of next header
@@ -235,27 +237,20 @@ export default class LavaFlow {
 		let pageContent = ''; // current page content
 		let nextHeader = ''; // next header
 		let currentHeader = journal.name; // current page's header
-		let hMatches = null;
 		const h1Matches = fileContent.matchAll(header1RegEx);
 		for (let h1Match of h1Matches) {
-			LavaFlow.log(`Working on match ${h1Match[0]} at index ${h1Match.index ?? -1} with length ${h1Match[0].length} with prior end index ${priorEndIndex} and current header ${currentHeader}}`, false);
 			currentStartIndex = h1Match.index ?? -1; // start position of current header
 			currentEndIndex = currentStartIndex + (h1Match[0].length ?? 0); // final position of found header
 			nextHeader = h1Match[0].replace('# ', ''); // this is the next page's header, not current page's header
-			LavaFlow.log(`Found nextHeader: ${nextHeader}`);
 			if (currentStartIndex == 0) {
-				LavaFlow.log(`Found header at top of page`);
 				priorEndIndex = currentEndIndex;
 				currentHeader = nextHeader;
 				continue;
 			} // if the page starts with a header, we can skip the match and move to the next block.
 			pageContent = fileContent.substring(priorEndIndex, currentStartIndex);
 			priorEndIndex = currentEndIndex;
-			hMatches = pageContent.matchAll(headersRegEx);
-			for (let hMatch of hMatches) { // increase header values for the page
-				pageContent = pageContent.replace(hMatch[0], hMatch[0].slice(1));
-				// this will replace all headers of a specific level with the next level. since regex matches all headers, this will do nothing most of the time. 
-				// need to find a more efficient way
+			for (let i = 2; i < 8; i++) {
+				pageContent = pageContent.replace(`${"#".repeat(i)} `, `${"#".repeat(i - 1)} `);
 			}
 			// @ts-expect-error
 			await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal });
@@ -265,16 +260,25 @@ export default class LavaFlow {
 		// @ts-expect-error
 		await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal }); // create final page
 	}
-	static async updateJournalFromFile(journal, file) {
-		await LavaFlow.updateJournal(journal, await LavaFlow.getFileContent(file));
+	static async updateJournalFromFile(journal, file, headerToPage) {
+		await LavaFlow.updateJournal(journal, await LavaFlow.getFileContent(file), headerToPage);
 	}
-	static async updateJournal(journal, content) {
+	static async updateJournal(journal, content, headerToPage) {
 		if (journal === undefined || journal === null)
 			return;
-		// v10 not supported by foundry-vtt-types yet
-		// @ts-expect-error
-		const page = journal.pages.contents[0];
-		await page.update({ text: { markdown: content } });
+		if (headerToPage) {
+			// @ts-expect-error
+			for (let page of journal.pages) {
+				page.delete();
+			}
+			await this.createPagesFromHeaders(journal, content);
+		}
+		else {
+			// v10 not supported by foundry-vtt-types yet
+			// @ts-expect-error
+			const page = journal.pages.contents[0];
+			await page.update({ text: { markdown: content } });
+		}
 	}
 	static async getFileContent(file) {
 		let originalText = await file.originalFile.text();
@@ -283,40 +287,39 @@ export default class LavaFlow {
 		// unsure why this is replacing data in the original text...
 		return originalText;
 	}
-	static async updateLinks(fileInfo, allJournals) {
+	static async updateLinks(fileInfo, allJournals, headerToPage) {
 		const linkPatterns = fileInfo.getLinkRegex();
 		// scan all created journal entries (via allJournals) for matching references to markdown file fileInfo
 		for (let i = 0; i < allJournals.length; i++) {
-			// v10 not supported by foundry-vtt-types yet
-			// @ts-expect-error
-			const comparePage = allJournals[i].pages.contents[0];
 			for (let j = 0; j < linkPatterns.length; j++) {
-				const linkMatches = comparePage.text.markdown.matchAll(linkPatterns[j]);
-				// linkMatches (full link, page, header, alias)
-				for (const linkMatch of linkMatches) {
-					if (linkMatch[2] !== undefined && linkMatch[1] == undefined && fileInfo.journal?.id != allJournals[i].id) { // current page header
-						// link is a current page header link and we're not matching that page
-						continue;
-						// since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
-					}
-					let link = fileInfo.getLink(linkMatch);
-					if (link === null)
-						continue;
-					if (fileInfo instanceof OtherFileInfo) {
-						const resizeMatches = linkMatch[0].match(/\|\d+(x\d+)?\]/gi);
-						if (resizeMatches !== null && resizeMatches.length > 0) {
-							const dimensions = resizeMatches[0]
-								.replace(/(\||\])/gi, '')
-								.toLowerCase()
-								.split('x');
-							if (dimensions.length === 1)
-								dimensions.push('*');
-							const dimensionsString = dimensions.join('x');
-							link = link.replace(/\)$/gi, ` =${dimensionsString})`);
+				// @ts-expect-error
+				for (let currentPage of allJournals[i].pages) {
+					const linkMatches = currentPage.text.markdown.matchAll(linkPatterns[j]);
+					for (const linkMatch of linkMatches) {
+						if (linkMatch[2] !== undefined && linkMatch[1] == undefined && fileInfo.journal?.id != allJournals[i].id) { // current page header
+							// link is a current page header link and we're not matching that page
+							continue;
+							// since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
 						}
+						let link = fileInfo.getLink(linkMatch);
+						if (link === null)
+							continue;
+						if (fileInfo instanceof OtherFileInfo) {
+							const resizeMatches = linkMatch[0].match(/\|\d+(x\d+)?\]/gi);
+							if (resizeMatches !== null && resizeMatches.length > 0) {
+								const dimensions = resizeMatches[0]
+									.replace(/(\||\])/gi, '')
+									.toLowerCase()
+									.split('x');
+								if (dimensions.length === 1)
+									dimensions.push('*');
+								const dimensionsString = dimensions.join('x');
+								link = link.replace(/\)$/gi, ` =${dimensionsString})`);
+							}
+						}
+						const newContent = currentPage.text.markdown.replace(linkMatch[0], link);
+						await currentPage.update({ text: { markdown: newContent } });
 					}
-					const newContent = comparePage.text.markdown.replace(linkMatch[0], link);
-					await LavaFlow.updateJournal(allJournals[i], newContent);
 				}
 			}
 		}
