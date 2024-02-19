@@ -98,6 +98,7 @@ export default class LavaFlow {
   static async saveSettings(settings: LavaFlowSettings): Promise<void> {
     const savedSettings = new LavaFlowSettings();
     Object.assign(savedSettings, settings);
+    savedSettings.vaultFiles = null;
     await (game as Game).user?.setFlag(LavaFlow.FLAGS.SCOPE, LavaFlow.FLAGS.LASTSETTINGS, savedSettings);
   }
 
@@ -340,7 +341,7 @@ export default class LavaFlow {
     let originalText = await file.originalFile.text();
     if (originalText !== null && originalText.length > 6)
       originalText = originalText.replace(/^---\r?\n([^-].*\r?\n)+---(\r?\n)+/, '');
-    // unsure why this is replacing data in the original text...
+    originalText = originalText.replace(/^#[0-9A-Za-z]+\b/gm, ' $&');
     return originalText;
   }
 
