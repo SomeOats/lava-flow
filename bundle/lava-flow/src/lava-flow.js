@@ -79,6 +79,7 @@ export default class LavaFlow {
 	static async saveSettings(settings) {
 		const savedSettings = new LavaFlowSettings();
 		Object.assign(savedSettings, settings);
+		savedSettings.vaultFiles = null;
 		await game.user?.setFlag(LavaFlow.FLAGS.SCOPE, LavaFlow.FLAGS.LASTSETTINGS, savedSettings);
 	}
 	static async importFile(file, settings, rootFolder) {
@@ -176,7 +177,7 @@ export default class LavaFlow {
 			}
 			if (backlinkFiles.length > 0) {
 				backlinkFiles.sort((a, b) => a.fileNameNoExt.localeCompare(b.fileNameNoExt));
-				const backLinkList = backlinkFiles.map((b) => `- ${b.getLink() ?? ''}`).join('\r\n');
+				const backLinkList = backlinkFiles.map((b) => `- ${b.getLink('', '', '') ?? ''}`).join('\r\n');
 				// v10 not supported by foundry-vtt-types yet
 				// @ts-expect-error
 				const page = fileInfo.journal.pages.contents[0];
@@ -231,32 +232,34 @@ export default class LavaFlow {
 		}
 		const header1RegEx = new RegExp(`^#\\s.*$`, `gmid`); // match level 1 headers. using index/lastIndex to split content
 		let fileContent = content;
-		let currentStartIndex = 0; // start of next header
-		let currentEndIndex = 0; // end of next header
-		let priorEndIndex = 0; // end of last header
-		let pageContent = ''; // current page content
+		let pageContent = ''; // current page content    
 		let nextHeader = ''; // next header
 		let currentHeader = journal.name; // current page's header
+		let currentCursor = 0; // current position (start of page)
+		let targetCursor = 0; // end position (end of page)
 		const h1Matches = fileContent.matchAll(header1RegEx);
 		for (let h1Match of h1Matches) {
-			currentStartIndex = h1Match.index ?? -1; // start position of current header
-			currentEndIndex = currentStartIndex + (h1Match[0].length ?? 0); // final position of found header
-			nextHeader = h1Match[0].replace('# ', ''); // this is the next page's header, not current page's header
-			if (currentStartIndex == 0) {
-				priorEndIndex = currentEndIndex;
+			targetCursor = h1Match.index ?? -1;
+			nextHeader = h1Match[0].replace('# ', ''); // the current page's header
+			if ((h1Match.index ?? 0) == 0) { // page starts with a header. no need to create a page
 				currentHeader = nextHeader;
+				currentCursor = targetCursor + (h1Match[0].length ?? 0); // move cursor to end of matched header. We do not include h1 matches in the page
 				continue;
-			} // if the page starts with a header, we can skip the match and move to the next block.
-			pageContent = fileContent.substring(priorEndIndex, currentStartIndex);
-			priorEndIndex = currentEndIndex;
+			}
+			pageContent = fileContent.substring(currentCursor, targetCursor);
 			for (let i = 2; i < 8; i++) {
-				pageContent = pageContent.replace(`${"#".repeat(i)} `, `${"#".repeat(i - 1)} `);
+				pageContent = pageContent.replace(`^${"#".repeat(i)}\\s`, `${"#".repeat(i - 1)} `);
 			}
 			// @ts-expect-error
 			await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal });
 			currentHeader = nextHeader;
+			currentCursor = targetCursor + (h1Match[0].length ?? 0);
 		}
-		pageContent = fileContent.slice(priorEndIndex);
+		// add the final page
+		pageContent = fileContent.slice(currentCursor);
+		for (let i = 2; i < 8; i++) {
+			pageContent = pageContent.replace(`^${"#".repeat(i)}\\s`, `${"#".repeat(i - 1)} `);
+		}
 		// @ts-expect-error
 		await JournalEntryPage.create({ name: currentHeader, text: { markdown: pageContent, format: 2 } }, { parent: journal }); // create final page
 	}
@@ -284,7 +287,7 @@ export default class LavaFlow {
 		let originalText = await file.originalFile.text();
 		if (originalText !== null && originalText.length > 6)
 			originalText = originalText.replace(/^---\r?\n([^-].*\r?\n)+---(\r?\n)+/, '');
-		// unsure why this is replacing data in the original text...
+		originalText = originalText.replace(/^#[0-9A-Za-z]+\b/gm, ' $&');
 		return originalText;
 	}
 	static async updateLinks(fileInfo, allJournals, headerToPage) {
@@ -295,13 +298,19 @@ export default class LavaFlow {
 				// @ts-expect-error
 				for (let currentPage of allJournals[i].pages) {
 					const linkMatches = currentPage.text.markdown.matchAll(linkPatterns[j]);
+					LavaFlow.log(`Processing page ${currentPage.name} of ${allJournals[i].name}`);
 					for (const linkMatch of linkMatches) {
-						if (linkMatch[2] !== undefined && linkMatch[1] == undefined && fileInfo.journal?.id != allJournals[i].id) { // current page header
+						let page = linkMatch[1] ?? '';
+						let header = ((linkMatch[3] ?? '').startsWith('#')) ? linkMatch[3] : (linkMatch[2] ?? ''); // header sometimes appears in group 3, despite declared as group 2
+						let alias = ((linkMatch[3] == undefined) ? (linkMatch[2] ?? '') : linkMatch[3]);
+						LavaFlow.log(`Processing link: ${linkMatch[0]} page: ${page} header: ${header} alias: ${alias}`);
+						if (header !== '' && page == '' && fileInfo.journal?.id != allJournals[i].id) { // current page header
 							// link is a current page header link and we're not matching that page
+							LavaFlow.log(`Link is a current page header for another page.`);
 							continue;
 							// since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
 						}
-						let link = fileInfo.getLink(linkMatch);
+						let link = fileInfo.getLink(header, page, alias);
 						if (link === null)
 							continue;
 						if (fileInfo instanceof OtherFileInfo) {

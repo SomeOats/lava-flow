@@ -50,6 +50,8 @@ export class MDFileInfo extends FileInfo {
 		return pageId;
 	}
 	getValidLinkHeader(header) {
+		if (header == '')
+			return null;
 		let validHeader = null;
 		// @ts-expect-error
 		for (let currentPage of this.journal?.pages) {
@@ -76,18 +78,18 @@ export class MDFileInfo extends FileInfo {
 		// !?\[\[(${k})?(#[^\|\]]*)?(\|[^\]]*)?\]\]
 		// matches all obsidian links, including current page header links.
 	}
-	getLink(linkMatch = null) {
-		if (linkMatch === null)
-			return null; // if we didn't find a match, but somehow we're here, we don't want to accidently override the link
-		if (linkMatch[1] == undefined && linkMatch[2] == undefined && linkMatch[3] == undefined)
+	getLink(header, page, alias) {
+		if (header == null && page == null && alias == null)
 			return null;
-		let page = linkMatch[1] ?? '';
-		let header = ((linkMatch[3] ?? '').startsWith('#')) ? linkMatch[3] : (linkMatch[2] ?? ''); // header sometimes appears in group 3, despite declared as group 2
-		let alias = ((linkMatch[3] == undefined) ? (linkMatch[2] ?? '') : linkMatch[3]);
+		if (header == '' && page == '' && alias == '')
+			return this.journal?.link ?? null;
+		header = header ?? '';
+		page = page ?? '';
+		alias = alias ?? '';
 		let validHeader = (header === '') ? null : this.getValidLinkHeader(header);
 		let pageId = null;
 		// @UUID[JournalEntry.WBAoheAv9WO3ieMv.JournalEntryPage.RXxhfmwhm5muifn7#magic]{Magic} // link to other page header
-		// @UUID[.5iPjPPTreRyAKx6C#gale]{Gale} // link to current journal page header
+		// @UUID[.5iPjPPTreRyAKx6C#gale]{Gale} // link to current journal page header. That is the pageID
 		let link = '@UUID[';
 		/* handle page links */
 		link = (page === '') ? link : `${link}JournalEntry.${this.journal?.id ?? ''}`; // if we have a page reference, add it to the link.
@@ -95,9 +97,9 @@ export class MDFileInfo extends FileInfo {
 		if (header !== '') {
 			pageId = this.getPageId(header.slice(1));
 			if (page !== '') { // page header
-				link = `${link}.JournalEntryPage.`;
+				link = `${link}.JournalEntryPage`;
 			}
-			link = (validHeader === null) ? `${link}${pageId}]` : `${link}${pageId}${validHeader}]`;
+			link = (validHeader === null) ? `${link}.${pageId}]` : `${link}.${pageId}${validHeader}]`;
 		}
 		else {
 			link = `${link}]`;
