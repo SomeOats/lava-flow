@@ -16,4 +16,5 @@ export class LavaFlowSettings {
   s3Bucket: string | null = null;
   s3Region: string | null = null;
   mediaFolder: string = 'img';
+  headerToPage: boolean = false;
 }
