@@ -33,7 +33,7 @@ export class LavaFlowForm extends FormApplication {
 			scale: null,
 			sheetConfig: false,
 		};
-		const mergedOptions = mergeObject(defaults, overrides);
+		const mergedOptions = foundry.utils.mergeObject(defaults, overrides);
 		return mergedOptions;
 	}
 	async _updateObject(event, formData) {

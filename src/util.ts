@@ -26,9 +26,16 @@ export async function getFolder(folderName: string, parentFolderID: string | nul
 export async function createFolder(folderName: string, parentFolderID: string | null): Promise<Folder | null> {
   const folder = await Folder.create({
     name: folderName,
-    type: 'JournalEntry',
-    parent: parentFolderID,
+    type: 'JournalEntry'
+    // parent: parentFolderID,
   });
   await folder?.setFlag(LavaFlow.FLAGS.SCOPE, LavaFlow.FLAGS.FOLDER, true);
+
+  if (parentFolderID !== null) {
+    let parent = (game as Game).folders?.get(parentFolderID) as Folder;
+
+    await folder?.update({folder: parent})
+  }
+  
   return folder ?? null;
 }

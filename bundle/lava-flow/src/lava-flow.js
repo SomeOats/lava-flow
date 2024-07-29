@@ -93,9 +93,11 @@ export default class LavaFlow {
 	static async importMarkdownFile(file, settings, rootFolder) {
 		let parentFolder = rootFolder;
 		let initIndex = (settings.createRootFolder) ? 0 : 1;
+		console.log("Lava Flow | file directories: " + file.directories);
 		for (let i = initIndex; i < file.directories.length; i++) {
 			const newFolder = await createOrGetFolder(file.directories[i], parentFolder?.id);
 			parentFolder = newFolder;
+			console.log("Lava Flow | Next parent id is: " + parentFolder?.id + " of name " + parentFolder?.name);
 		}
 		const journalName = file.fileNameNoExt;
 		let journal = game.journal?.find((j) => j.name === journalName && j.folder === parentFolder) ??
@@ -298,15 +300,12 @@ export default class LavaFlow {
 				// @ts-expect-error
 				for (let currentPage of allJournals[i].pages) {
 					const linkMatches = currentPage.text.markdown.matchAll(linkPatterns[j]);
-					LavaFlow.log(`Processing page ${currentPage.name} of ${allJournals[i].name}`);
 					for (const linkMatch of linkMatches) {
 						let page = linkMatch[1] ?? '';
 						let header = ((linkMatch[3] ?? '').startsWith('#')) ? linkMatch[3] : (linkMatch[2] ?? ''); // header sometimes appears in group 3, despite declared as group 2
 						let alias = ((linkMatch[3] == undefined) ? (linkMatch[2] ?? '') : linkMatch[3]);
-						LavaFlow.log(`Processing link: ${linkMatch[0]} page: ${page} header: ${header} alias: ${alias}`);
 						if (header !== '' && page == '' && fileInfo.journal?.id != allJournals[i].id) { // current page header
 							// link is a current page header link and we're not matching that page
-							LavaFlow.log(`Link is a current page header for another page.`);
 							continue;
 							// since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
 						}
