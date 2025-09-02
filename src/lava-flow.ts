@@ -37,19 +37,39 @@ export default class LavaFlow {
     return (game as Game).user?.isGM ?? false;
   }
 
-  static createUIElements(html: JQuery): void {
+  static createUIElements(html: any): void {
     if (!LavaFlow.isGM()) return;
 
     LavaFlow.log('Creating UI elements...', false);
+
+    const isV13 = (game as any)?.release?.generation >=13;
+
+    LavaFlow.log(`Detected Foundry version: ${(game as any)?.release?.generation || 'unknown'}, using v13 mode: ${isV13}`, false)
+
+    // for V13
+    const $html = isV13 ? $(html as HTMLElement) : html;
+
     const className = `${LavaFlow.ID}-btn`;
     const tooltip = (game as Game).i18n.localize('LAVA-FLOW.button-label');
-    const button = $(
-      `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`,
-    );
+    
+    const buttonHtml = isV13 
+      ? `<button type="button" class="${className}" data-action="importVault"><i class="fas fa-upload"></i><span>${tooltip}</span></button>`
+      : `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
+
+    const button = $(buttonHtml);
+
     button.on('click', function () {
       LavaFlow.createForm();
     });
-    html.find('.header-actions:first-child').after(button);
+    
+    if (isV13) {
+      // v13: Append to header-actions container
+      $html.find('.header-actions').append(button);
+    } else {
+      // v12: Insert after header-actions
+      $html.find('.header-actions:first-child').after(button);
+    }
+
     LavaFlow.log('Creating UI elements complete.', false);
   }
 
