@@ -1,0 +1,26 @@
+{
+  "id": "lava-flow",
+  "title": "Lava Flow",
+  "description": "A module for importing Obsidian MD vaults into Foundry VTT as journal entries.",
+  "version": "5.0.0",
+  "packs": [],
+  "system": [],
+  "dependencies": [],
+  "scripts": [],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "authors": [
+    {
+      "name": "Some Oats"
+    }
+  ],
+  "flags": {
+    "canUpload": true
+  },
+  "esmodules": [
+    "scripts/lava-flow.js"
+  ]
+}

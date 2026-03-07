@@ -1,73 +1,52 @@
-# Lava Flow
+# Foundry VTT Module Template (TypeScript)
 
-This module allows you to import your notes from Obsidian MD into Foundry journal entries.
+This repository is a starting point for creating a Foundry VTT module with TypeScript. If you are using GitHub, click the green "Use this template" button to get started.
 
-## Features
+This template is based on the work of [BringingFire/foundry-module-ts-template](https://github.com/BringingFire/foundry-module-ts-template) with the following changes:
 
-- Select your whole vault or even just one folder within it. Or even just any folder with .md files.
-- Replaces Obsidian links with journal entry links in Foundry.
-- Overwrite or ignore existing journal entries.
-- Give your players permission to observe all notes or not during import.
-- Optional index Journal entry which lists all your notes under their top-level folder.
-- Optional "Reference" section which adds backlinks to each journal entry, similar to Obsidian MD's backlinks.
-- Optionally import your images and have them embedded in your journal entries.
-- All created folders have the flag "lavaFlowFolder" and likewise journal entries will have the flag "lavaFlowJournalEntry".
+- Updated for Foundry V13.
+- Directory structure aligned with the Foundry documentation.
+- Hook methods decentralized into their own components.
 
-## Compatibility Matrix
+## Other branchs
 
-I highly recommend using Foundry v10, as the latest version of this module will have the best functionality and latest bug fixes.
-| Lava Flow Version | Foundry Version |
-| -- | -- |
-| v1.\* | v9 |
-| v2.\* | v10 |
-| v3.\* | v11 |
+See the other branchs for variations:
 
-## How to Use
+- **lib-wrapper**: For [libWrapper](https://github.com/ruipin/fvtt-lib-wrapper) template.
+- *more to come*
 
-1. Under the Journal tab, there is an "Import Obsidian Vault" button.\
-   ![image](https://user-images.githubusercontent.com/54974037/146979663-d754caeb-df13-454c-8b2a-00ecce5ff8a4.png)
-1. Click this to open the import menu.\
-   ![image](https://user-images.githubusercontent.com/54974037/153740928-d2f8f780-1496-4bd9-808a-97d94b982eb3.png)
-1. Name the top journal folder you wish to place your notes in. If this folder does not already exist, it will be created. Leaving this blank will place your notes directly into your journal entries.
-1. Select the folder you wish to import. This can be any folder within your vault, including the root, or any folder with markdown files.
-1. Select if you wish to overwrite journal entries that already exist with the same name in the same folder.
-   - (Optional) If you do not wish to overwrite existing journal entries, you can choose to skip duplicates.
-1. Select if all players should have the [Observer](https://foundryvtt.com/article/users/) permission on the notes that get imported.
-1. Select if you wish to create an Index journal entry. This lists links to every imported entry, organized by their top-level folder.\
-   ![image](https://user-images.githubusercontent.com/54974037/146980929-400ce499-c352-47a1-890a-5f3ae574b8d3.png)
-1. Select if you wish to create backlinks in each imported journal entry. This creates a "Reference" section to the end of each journal entry, linking to all the journal entries that reference it.\
-   ![image](https://user-images.githubusercontent.com/54974037/146981259-6755cb58-a4d6-4df6-9473-8ad8c5914182.png)
-1. If you want to import images, select "Import non-markdown files". By default, this uses local storage, you can also select S3 storage.
+## What’s included
 
-## Known Issues
+Out of the box, this template adds a button to the top of the Actors directory. Clicking it opens a modal with a button that loads a random dog image from the [Dog API][3]. This demonstrates common tasks such as rendering templates, calling external APIs, organizing code, and styling with SCSS.
 
-- Folder depth is limited to Foundry's folder depth limit.
-- Obsidian Canvas files are not supported. These will be ignored.
-- Issues with selecting a folder and having no files import. This is usually an issue with webkitdirectory.
-  - Some browsers (e.g. OperaGX)
-  - Foundry App
-    - Caused by older versions of Electron, which the Foundry app uses.
-    - This impacts all v9 installs.
-    - This _can_ impact v10 and newer if you previously had a v9 install and upgraded Foundry via the app instead of through a v10 installer.
-    - If you experience this in v10+, try installing using a new installer. Please take all appropriate caution, such as backing up your user data, as you would with any upgrade.
-- Not all Obsidian markdown is supported in Foundry.
-  - Callouts are formatted as block quotes.
-  - Code blocks work, but do not have syntax highlighting.
-  - Comments
-  - Diagrams
-  - Embeds: These are still linked, but the text is not populated within the page's content.
-  - Footnotes
-  - Highlighting
-  - Obsidian URI links: you should not need these anyway since you would not want to link from the Foundry server's file system. Use normal `[[Links]]`.
-  - Math using Mathjax.
-  - Tasks are formatted as lists with `[x]` instead of checkboxes. Still readable, but not as clean.
+## Dev container
 
-## License
+A dev container configuration is provided at [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json) ([see][5]).
 
-Lava Flow is released under the MIT License.
+Recommended: create a personal configuration with mounts to your Foundry installation and data folder for easier testing and debugging. Copy `.devcontainer/devcontainer.json` to `.devcontainer/personal/devcontainer.json` and follow the instructions in the comments. The personal folder and suggested mount points are ignored by git.
 
-## Contact
+## Getting started (Todo)
 
-The best place to track bugs is to create a [new issue](https://github.com/Praxxian/lava-flow/issues/new).
+If you just created a project from this template, make these changes first:
 
-For other questions, I am on both the Obsidian and FoundryVTT Discord as @praxis#2944.
+- [ ] Update values in `src/module.json`. At minimum change `id`, `title`, and `description`. It is also recommended to add a `contacts` field.
+- [ ] Choose a localization prefix. Replace `TODO-MY-MODULE.*` entries in `src/lang/en.json` with your own prefix, and remove entries you do not need.
+- [ ] Rename/update `TodoMyModule` in `src/ts/types.ts` and `src/ts/module.ts`.
+
+## Automated setup
+
+Alternatively, run the PowerShell script [Setup-Repo.ps1](Setup-Repo.ps1) to apply these changes automatically. It also generates default `.vscode/launch.json` and `.vscode/tasks.json`.
+
+```pwsh
+./Setup-Repo.ps1 module-id "Module Title" "Module description" "Author Name" "Author Email" [ModuleClassName] [-WhatIf]
+```
+
+## What next
+
+Create a new Application class and register its hooks in `TodoMyModuleHooks.HOOKS_DEFINITIONS` and/or add an init callback in `TodoMyModuleHooks.ON_INIT_MODULE_CALLBACKS`. See [src/ts/types.ts](./src/ts/types.ts).
+
+[1]: https://foundryvtt.com/
+[2]: https://www.typescriptlang.org/
+[3]: https://dog.ceo/dog-api/
+[4]: https://bringingfire.com/blog/intro-to-foundry-module-development
+[5]: https://code.visualstudio.com/docs/devcontainers/containers
