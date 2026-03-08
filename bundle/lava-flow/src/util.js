@@ -1,5 +1,6 @@
 import LavaFlow from './lava-flow.js';
 export async function createOrGetFolder(folderName, parentFolderID = null) {
+	LavaFlow.log(`createOrGetFolder file ${folderName} at parent ${parentFolderID}`);
 	if (folderName == null || folderName === '')
 		return null;
 	const folder = (await getFolder(folderName, parentFolderID)) ?? (await createFolder(folderName, parentFolderID));
@@ -21,8 +22,9 @@ export async function createFolder(folderName, parentFolderID) {
 	const folder = await Folder.create({
 		name: folderName,
 		type: 'JournalEntry',
-		parent: parentFolderID,
+		folder: parentFolderID,
 	});
+	LavaFlow.log(`Creating folder ${folderName} with parent ${parentFolderID}`);
 	await folder?.setFlag(LavaFlow.FLAGS.SCOPE, LavaFlow.FLAGS.FOLDER, true);
 	return folder ?? null;
 }
