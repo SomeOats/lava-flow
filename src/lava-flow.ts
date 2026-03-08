@@ -47,7 +47,7 @@ export default class LavaFlow {
     LavaFlow.log(`Detected Foundry version: ${(game as any)?.release?.generation || 'unknown'}, using v13 mode: ${isV13}`, false)
 
     // for V13
-    const $html = isV13 ? $(html as HTMLElement) : html;
+    //const $html = isV13 ? $(html as HTMLElement) : html;
 
     const className = `${LavaFlow.ID}-btn`;
     const tooltip = (game as Game).i18n.localize('LAVA-FLOW.button-label');
@@ -64,10 +64,24 @@ export default class LavaFlow {
     
     if (isV13) {
       // v13: Append to header-actions container
-      $html.find('.header-actions').append(button);
+      //html.querySelector(".directory-header").appendChild(button);
+      const header = html.querySelector(".directory-header");
+      if (!header) return;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `${LavaFlow.ID}-btn`;
+      button.textContent = (game as Game).i18n.localize('LAVA-FLOW.button-label');
+      button.setAttribute('data-action', 'importVault');
+
+      button.addEventListener("click", () => {
+        LavaFlow.createForm();
+      });
+
+      header.appendChild(button);
     } else {
       // v12: Insert after header-actions
-      $html.find('.header-actions:first-child').after(button);
+      html.find('.header-actions:first-child').after(button);
     }
 
     LavaFlow.log('Creating UI elements complete.', false);

@@ -24,13 +24,39 @@ export default class LavaFlow {
 		if (!LavaFlow.isGM())
 			return;
 		LavaFlow.log('Creating UI elements...', false);
+		const isV13 = game?.release?.generation >= 13;
+		LavaFlow.log(`Detected Foundry version: ${game?.release?.generation || 'unknown'}, using v13 mode: ${isV13}`, false);
+		// for V13
+		//const $html = isV13 ? $(html as HTMLElement) : html;
 		const className = `${LavaFlow.ID}-btn`;
 		const tooltip = game.i18n.localize('LAVA-FLOW.button-label');
-		const button = $(`<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`);
+		const buttonHtml = isV13
+			? `<button type="button" class="${className}" data-action="importVault"><i class="fas fa-upload"></i><span>${tooltip}</span></button>`
+			: `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
+		const button = $(buttonHtml);
 		button.on('click', function () {
 			LavaFlow.createForm();
 		});
-		html.find('.header-actions:first-child').after(button);
+		if (isV13) {
+			// v13: Append to header-actions container
+			//html.querySelector(".directory-header").appendChild(button);
+			const header = html.querySelector(".directory-header");
+			if (!header)
+				return;
+			const button = document.createElement("button");
+			button.type = "button";
+			button.className = `${LavaFlow.ID}-btn`;
+			button.textContent = game.i18n.localize('LAVA-FLOW.button-label');
+			button.setAttribute('data-action', 'importVault');
+			button.addEventListener("click", () => {
+				LavaFlow.createForm();
+			});
+			header.appendChild(button);
+		}
+		else {
+			// v12: Insert after header-actions
+			html.find('.header-actions:first-child').after(button);
+		}
 		LavaFlow.log('Creating UI elements complete.', false);
 	}
 	static createForm() {
@@ -298,15 +324,12 @@ export default class LavaFlow {
 				// @ts-expect-error
 				for (let currentPage of allJournals[i].pages) {
 					const linkMatches = currentPage.text.markdown.matchAll(linkPatterns[j]);
-					LavaFlow.log(`Processing page ${currentPage.name} of ${allJournals[i].name}`);
 					for (const linkMatch of linkMatches) {
 						let page = linkMatch[1] ?? '';
 						let header = ((linkMatch[3] ?? '').startsWith('#')) ? linkMatch[3] : (linkMatch[2] ?? ''); // header sometimes appears in group 3, despite declared as group 2
 						let alias = ((linkMatch[3] == undefined) ? (linkMatch[2] ?? '') : linkMatch[3]);
-						LavaFlow.log(`Processing link: ${linkMatch[0]} page: ${page} header: ${header} alias: ${alias}`);
 						if (header !== '' && page == '' && fileInfo.journal?.id != allJournals[i].id) { // current page header
 							// link is a current page header link and we're not matching that page
-							LavaFlow.log(`Link is a current page header for another page.`);
 							continue;
 							// since we'll match current page headers irrespective of what page we are looking at, skip it if it doesn't match the current page
 						}
