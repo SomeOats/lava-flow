@@ -1,56 +1,78 @@
-import { defineConfig } from "vite";
-import { resolve } from "path";
-import { copyFileSync, mkdirSync, readdirSync, statSync } from "fs";
-import { join } from "path";
+import { defineConfig, PluginOption } from "vite";
+import { resolve, join } from "path";
+import { readFileSync, copyFileSync, mkdirSync, readdirSync, statSync, existsSync } from "fs";
+
+const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
 
 // Helper to recursively copy a directory (used to copy src/templates → dist/templates).
 function copyDir(src: string, dest: string) {
-  mkdirSync(dest, { recursive: true });
-  for (const entry of readdirSync(src)) {
-    const srcPath = join(src, entry);
-    const destPath = join(dest, entry);
-    if (statSync(srcPath).isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      copyFileSync(srcPath, destPath);
-    }
+  if (!existsSync(src)) return; // if src doesn't exist, nothing to do
+  mkdirSync(dest, { recursive: true }); // create directory structure
+  for (const entry of readdirSync(src)) { // loop through all contents in src
+    const srcPath = join(src, entry); // path to source file
+    const destPath = join(dest, entry); // path to target destination file
+    statSync(srcPath).isDirectory() ? copyDir(srcPath, destPath) : copyFileSync(srcPath, destPath);
+    // if it's a directory, recurse. otherwise copy the file
   }
 }
 
+/** Copy a single file into destDir if the file exists at the project root. */
+function copyIfExists(filename: string, destDir: string) {
+  if (existsSync(filename)) {
+    mkdirSync(destDir, { recursive: true });
+    copyFileSync(filename, join(destDir, filename));
+  }
+}
+
+/**
+ * Copies all static assets to outDir after each build:
+ *   module.json  →  dist/
+ *   templates/   →  dist/templates/
+ *   lang/        →  dist/lang/
+ *   css/         →  dist/css/
+ *   LICENSE, README.md, CHANGELOG.md  →  dist/
+ */
+function copyAssetsPlugin(outDir: string): PluginOption {
+  return {
+    name: "lava-flow-copy-assets",
+    closeBundle() {
+      copyIfExists("module.json", outDir);
+      copyDir("templates", join(outDir, "templates"));
+      copyDir("lang",      join(outDir, "lang"));
+      copyDir("css",       join(outDir, "css"));
+      for (const f of ["LICENSE", "README.md", "CHANGELOG.md"]) {
+        copyIfExists(f, outDir);
+      }
+      console.log(`lava-flow | assets copied to ${outDir}`);
+    },
+  };
+}
+
+const outDir  = "dist";
+const isWatch = process.env.WATCH === "1";
+
 export default defineConfig({
-  // public/ is copied verbatim to dist/ — this is where module.json lives.
-  publicDir: "public",
+  // No publicDir — module.json lives at the project root and is copied by
+  // copyAssetsPlugin, keeping the same layout as the old gulpfile.
+  publicDir: false,
 
   build: {
-    outDir: "dist",
+    outDir,
     emptyOutDir: true,
     sourcemap: true,
+    watch: isWatch ? {} : null,
 
     rollupOptions: {
-      // Entry point is src/ts/module.ts
-      input: resolve(__dirname, "src/ts/module.ts"),
+      input: resolve(__dirname, "src/index.ts"),
       output: {
-        // Path matches "esmodules" in module.json
-        entryFileNames: "scripts/lava-flow.js",
+        // Mirrors dist/src/ output from the old gulp pipeline.
+        entryFileNames: "src/[name].js",
+        chunkFileNames: "src/[name].js",
         format: "es",
         inlineDynamicImports: true,
       },
     },
   },
 
-  plugins: [
-    {
-      // Copy src/templates → dist/templates after each build.
-      // Vite's publicDir only watches the public/ folder, so we handle
-      // src/templates with this small plugin.
-      name: "copy-templates",
-      closeBundle() {
-        copyDir(
-          resolve(__dirname, "src/templates"),
-          resolve(__dirname, "dist/templates"),
-        );
-        console.log("lava-flow | templates copied to dist/templates");
-      },
-    },
-  ],
+  plugins: [copyAssetsPlugin(outDir)],
 });

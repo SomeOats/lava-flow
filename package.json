@@ -4,10 +4,15 @@
   "description": "A module for importing Obsidian MD vaults into Foundry VTT as journal entries.",
   "private": true,
   "scripts": {
-    "build": "vite build",
-    "watch": "vite build --watch"
+    "build":    "vite build",
+    "watch":    "WATCH=1 vite build",
+    "dev":      "BUILD_MODE=dev vite build",
+    "devwatch": "BUILD_MODE=dev WATCH=1 vite build",
+    "zip":      "BUILD_MODE=zip vite build",
+    "clean":    "rimraf dist bundle"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
     "fvtt-types": "github:League-of-Foundry-Developers/foundry-vtt-types#main",
     "rollup-plugin-copy": "^3.5.0",
     "sass": "^1.89.2",

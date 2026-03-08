@@ -1,38 +1,123 @@
-// Foundry exposes its API on the global `foundry` object.
-// We pull out what we need via destructuring.
+import {ID, FLAGS, TEMPLATES } from './constants';
+import { LavaFlowSettings } from './lava-flow-settings';
+
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/**
- * A minimal ApplicationV2 dialog that renders a Handlebars template.
- *
- * Key AppV2 concepts demonstrated:
- *  - DEFAULT_OPTIONS: static config (id, title, size)
- *  - PARTS: maps part names to .hbs template paths
- *  - _prepareContext: async method that returns data for the template
- */
 export class LavaFlowApp extends HandlebarsApplicationMixin(ApplicationV2) {
+
+  // ─── Static config (replaces defaultOptions) ────────────────────────────
+
   static DEFAULT_OPTIONS = {
-    // Unique DOM id for this application
-    id: "lava-flow-app",
+    id: `${ID}-form`,
     window: {
-      title: "Lava Flow",
+      title: 'Import Obsidian MD Vault',
+      resizable: true,
     },
     position: {
-      width: 360,
+      width: 500,
+      height: 600,
+    },
+    tag: 'form',
+    form: {
+      handler: LavaFlowApp.onSubmit,
+      closeOnSubmit: true,
     },
   };
 
-  // Each key in PARTS becomes an independently renderable section.
-  // The template path must be relative to Foundry's data root.
   static PARTS = {
     main: {
-      template: "modules/lava-flow/templates/lava-flow.hbs",
+      template: TEMPLATES.IMPORTDIAG,
     },
   };
 
-  // _prepareContext is the AppV2 equivalent of AppV1's getData().
-  // Whatever you return here is available inside the .hbs template.
-  async _prepareContext() {
-    return {};
+  // ─── Instance state ─────────────────────────────────────────────────────
+
+  /** Populated by the file input's change listener before form submission. */
+  vaultFiles: FileList | null = null;
+
+  // ─── Data (replaces getData) ─────────────────────────────────────────────
+
+  /**
+   * Supplies data to the Handlebars template.
+   * Mirrors the old FormApplication's getData(), which returned importSettings.
+   */
+  async _prepareContext(): Promise<LavaFlowSettings> {
+    const savedSettings = (game as Game).user?.getFlag(
+      FLAGS.SCOPE,
+      FLAGS.LASTSETTINGS,
+    ) as LavaFlowSettings | undefined;
+
+    return savedSettings ?? new LavaFlowSettings();
+  }
+
+  // ─── Listeners (replaces activateListeners) ──────────────────────────────
+
+  /**
+   * Wires up all interactive elements after the form renders.
+   * Mirrors activateListeners() from the old FormApplication.
+   *
+   * AppV2 note: `this.element` is a plain HTMLElement, not a jQuery object.
+   * All DOM work uses querySelector / addEventListener instead of $.
+   */
+  protected _onRender(context: LavaFlowSettings, _options: object): void {
+    const prefix = context.idPrefix ?? '';
+
+    // Checkbox → show/hide toggles
+    this._setToggle(`#${prefix}importNonMarkdown`, `#${prefix}nonMarkdownOptions`);
+    this._setToggle(`#${prefix}useS3`,             `#${prefix}s3Options`);
+
+    // Inverse toggle: hide the div when the checkbox is checked
+    this._setInverseToggle(`#${prefix}overwrite`, `#${prefix}ignoreDuplicateDiv`);
+
+    // File input — store the selected FileList for use in onSubmit
+    const vaultFilesInput = this.element.querySelector<HTMLInputElement>(`#${prefix}vaultFiles`);
+    vaultFilesInput?.addEventListener('change', (event) => {
+      this.vaultFiles = (event.target as HTMLInputElement).files;
+    });
+  }
+
+  // ─── Toggle helpers ──────────────────────────────────────────────────────
+
+  private _setInverseToggle(checkBoxSelector: string, divSelector: string): void {
+    this._setToggle(checkBoxSelector, divSelector, true);
+  }
+
+  /**
+   * Shows/hides `divSelector` whenever `checkBoxSelector` changes.
+   * When inverse=true the logic is flipped (hide when checked).
+   */
+  private _setToggle(
+    checkBoxSelector: string,
+    divSelector: string,
+    inverse: boolean = false,
+  ): void {
+    const checkbox = this.element.querySelector<HTMLInputElement>(checkBoxSelector);
+    const div      = this.element.querySelector<HTMLElement>(divSelector);
+    if (!checkbox || !div) return;
+
+    checkbox.addEventListener('change', () => {
+      const show = inverse ? !checkbox.checked : checkbox.checked;
+      div.style.display = show ? '' : 'none';
+    });
+  }
+
+  // ─── Submit handler (replaces _updateObject) ─────────────────────────────
+
+  /**
+   * Called by AppV2's form machinery on submission.
+   * Mirrors _updateObject() from the old FormApplication.
+   *
+   * `this` is bound to the LavaFlowApp instance by Foundry's AppV2 internals.
+   */
+  static async onSubmit(
+    event: SubmitEvent,
+    _form: HTMLFormElement,
+    formData: FormDataExtended,
+  ): Promise<void> {
+    // `this` here is the LavaFlowApp instance (AppV2 binds it automatically).
+    const self = this as unknown as LavaFlowApp;
+    const data = formData.object as Record<string, unknown>;
+    data.vaultFiles = self.vaultFiles;
+    await LavaFlow.importVault(event, data);
   }
 }

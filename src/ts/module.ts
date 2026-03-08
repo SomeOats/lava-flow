@@ -1,11 +1,10 @@
-import { LavaFlowApp } from "./lava_flow_app";
-
-const MODULE_ID = "lava-flow";
+import { LavaFlow } from './lava-flow';
+import { ID } from './constants';
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 // Runs once when Foundry has finished loading its core API.
 Hooks.once("init", () => {
-  console.log(`${MODULE_ID} | Initialised.`);
+  console.log(`${ID} | Initialised.`);
 });
 
 // ─── Sidebar button ──────────────────────────────────────────────────────────
@@ -17,20 +16,9 @@ Hooks.once("init", () => {
 // Swap "renderActorsDirectory" for any other sidebar hook if you prefer a
 // different panel (renderJournalDirectory, renderScenesDirectory, etc.).
 Hooks.on("renderJournalDirectory", (_app: unknown, html: HTMLElement) => {
-  // Guard: don't inject the button more than once
-  if (html.querySelector(".lava-flow-btn")) return;
-
-  const header = html.querySelector(".directory-header");
-  if (!header) return;
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "lava-flow-btn";
-  button.textContent = "👋 Hello World";
-
-  button.addEventListener("click", () => {
-    new LavaFlowApp().render(true);
-  });
-
-  header.appendChild(button);
+  try {
+    LavaFlow.createUIElements(html);
+  } catch (e) {
+    LavaFlow.errorHandling(e);
+  }
 });

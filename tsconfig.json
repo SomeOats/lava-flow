@@ -5,10 +5,14 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noImplicitAny": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "allowJs": true
   },
   "include": [
     "src",
     "vite.config.ts"
-  ]
+  ],
+  "types": [
+    "@league-of-foundry-developers/foundry-vtt-types"
+  ] 
 }
