@@ -26,17 +26,8 @@ export default class LavaFlow {
 		LavaFlow.log('Creating UI elements...', false);
 		const isV13 = game?.release?.generation >= 13;
 		LavaFlow.log(`Detected Foundry version: ${game?.release?.generation || 'unknown'}, using v13 mode: ${isV13}`, false);
-		// for V13
-		//const $html = isV13 ? $(html as HTMLElement) : html;
 		const className = `${LavaFlow.ID}-btn`;
 		const tooltip = game.i18n.localize('LAVA-FLOW.button-label');
-		const buttonHtml = isV13
-			? `<button type="button" class="${className}" data-action="importVault"><i class="fas fa-upload"></i><span>${tooltip}</span></button>`
-			: `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
-		const button = $(buttonHtml);
-		button.on('click', function () {
-			LavaFlow.createForm();
-		});
 		if (isV13) {
 			// v13: Append to header-actions container
 			//html.querySelector(".directory-header").appendChild(button);
@@ -45,8 +36,8 @@ export default class LavaFlow {
 				return;
 			const button = document.createElement("button");
 			button.type = "button";
-			button.className = `${LavaFlow.ID}-btn`;
-			button.textContent = game.i18n.localize('LAVA-FLOW.button-label');
+			button.className = className;
+			button.textContent = tooltip;
 			button.setAttribute('data-action', 'importVault');
 			button.addEventListener("click", () => {
 				LavaFlow.createForm();
@@ -55,7 +46,13 @@ export default class LavaFlow {
 		}
 		else {
 			// v12: Insert after header-actions
-			html.find('.header-actions:first-child').after(button);
+			const header = html.find('.header-actions:first-child');
+			const buttonHtml = `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
+			const button = $(buttonHtml);
+			button.on('click', function () {
+				LavaFlow.createForm();
+			});
+			header.after(button);
 		}
 		LavaFlow.log('Creating UI elements complete.', false);
 	}

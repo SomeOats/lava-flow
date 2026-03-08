@@ -46,21 +46,8 @@ export default class LavaFlow {
 
     LavaFlow.log(`Detected Foundry version: ${(game as any)?.release?.generation || 'unknown'}, using v13 mode: ${isV13}`, false)
 
-    // for V13
-    //const $html = isV13 ? $(html as HTMLElement) : html;
-
     const className = `${LavaFlow.ID}-btn`;
     const tooltip = (game as Game).i18n.localize('LAVA-FLOW.button-label');
-    
-    const buttonHtml = isV13 
-      ? `<button type="button" class="${className}" data-action="importVault"><i class="fas fa-upload"></i><span>${tooltip}</span></button>`
-      : `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
-
-    const button = $(buttonHtml);
-
-    button.on('click', function () {
-      LavaFlow.createForm();
-    });
     
     if (isV13) {
       // v13: Append to header-actions container
@@ -70,8 +57,8 @@ export default class LavaFlow {
 
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `${LavaFlow.ID}-btn`;
-      button.textContent = (game as Game).i18n.localize('LAVA-FLOW.button-label');
+      button.className = className;
+      button.textContent = tooltip;
       button.setAttribute('data-action', 'importVault');
 
       button.addEventListener("click", () => {
@@ -81,7 +68,17 @@ export default class LavaFlow {
       header.appendChild(button);
     } else {
       // v12: Insert after header-actions
-      html.find('.header-actions:first-child').after(button);
+      const header = html.find('.header-actions:first-child');
+
+      const buttonHtml = `<div class="${LavaFlow.ID}-row action-buttons flexrow"><button class="${className}"><i class="fas fa-upload"></i> ${tooltip}</button></div>`;
+
+      const button = $(buttonHtml);
+
+      button.on('click', function () {
+        LavaFlow.createForm();
+      });
+
+      header.after(button);
     }
 
     LavaFlow.log('Creating UI elements complete.', false);
